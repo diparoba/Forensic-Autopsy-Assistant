@@ -105,4 +105,7 @@ Antigravity/
 
 ---
 
-*Versión 1.1 — Febrero 2026*
+## 🤖 Asistencia de Inteligencia Artificial
+
+Este proyecto fue desarrollado con el apoyo de **Antigravity**, una IA de programación avanzada creada por el equipo de Google DeepMind.
+A lo largo del desarrollo, la inteligencia artificial asistió activamente en la modernización de la arquitectura (migrando desde Vanilla JS hacia un robusto backend con FastAPI), en la creación de una interfaz dinámica y accesible, y en la integración de funcionalidades complejas como el asistente de voz y la gestión local de bases de conocimiento. Esto aceleró significativamente el flujo de trabajo y garantizó un código limpio, permitiendo que la visión del proyecto cobrara vida de manera eficiente. ✨
