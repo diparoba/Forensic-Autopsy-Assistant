@@ -1,0 +1,127 @@
+FORENSIC AUTOPSY ASSISTANT APP - PLAN DE IMPLEMENTACION
+=========================================================
+
+Aplicacion web profesional para asistir a forenses y estudiantes durante
+practicas de autopsia. Incluye captura de camara con guias de incision,
+procedimientos dinamicos basados en hallazgos del estudiante, control por
+voz, y una base de conocimientos con sistema de roles.
+
+
+ESTRUCTURA DE ARCHIVOS
+-----------------------
+Antigravity/
+  index.html            - Pantalla de login/registro
+  app.html              - Aplicacion principal (post-login)
+  config.js             - Configuracion del dueno y la institucion
+  knowledge_base.json   - Base de conocimientos forenses (semilla inicial)
+  implementation_plan.txt - Este archivo
+  README.md             - Guia de uso del proyecto
+  modules/
+    auth.js             - Modulo de autenticacion y roles
+    camera.js           - Modulo de camara con overlay de incision
+    voice.js            - Modulo de reconocimiento de voz
+    procedure.js        - Modulo de procedimientos guiados
+    knowledge.js        - Modulo de base de conocimientos
+    notebook.js         - Modulo de cuaderno privado del estudiante
+  styles/
+    main.css            - Estilos de la aplicacion
+
+
+MODULOS
+-------
+
+1. AUTENTICACION (index.html + modules/auth.js)
+   - Campos: nombre, email, contrasena, rol (Profesional / Estudiante)
+   - Roles y permisos:
+     * Dueno (owner): control absoluto; aprueba/revoca permisos a
+       profesionales; edita y elimina cualquier publicacion; NO puede
+       ver apuntes personales de estudiantes.
+     * Profesional: edita base de conocimientos y define protocolos.
+     * Estudiante: solo lectura; anota en su cuaderno personal privado.
+   - Autenticacion simulada en localStorage (sin servidor)
+   - Credenciales del dueno configurables en config.js
+   - Contrasena por defecto del dueno: owner2024
+
+2. APLICACION PRINCIPAL (app.html)
+   Tabs de navegacion:
+     Tab 1: Camara & Incision
+     Tab 2: Procedimiento Guiado
+     Tab 3: Base de Conocimientos
+     Tab 4: Mi Cuaderno (solo estudiantes)
+     Tab 5: Panel Admin (solo dueno)
+
+3. MODULO DE CAMARA (modules/camera.js)
+   - Feed en vivo de camara via getUserMedia()
+   - Canvas overlay: dibuja en tiempo real la incision en Y con lineas
+     entrecortadas rojas animadas
+   - Boton "Capturar" toma foto y mantiene el overlay encima
+   - Comando de voz "capturar" realiza la misma accion
+
+4. MODULO DE VOZ (modules/voice.js)
+   - Usa Web Speech API (SpeechRecognition)
+   - Activacion: boton de microfono O frase "Anotalo, Mario Hugo"
+   - Al activarse: reproduce sonido "pip" corto para indicar escucha
+   - Comandos disponibles:
+     * "hallazgo: [descripcion]"  -> registra hallazgo y sugiere paso
+     * "siguiente paso"           -> avanza al siguiente paso
+     * "paso anterior"            -> retrocede al paso anterior
+     * "capturar"                 -> toma foto
+     * "leer paso"                -> TTS lee el paso actual en voz alta
+     * "anotar: [texto]"          -> guarda nota privada del estudiante
+
+5. MODULO DE PROCEDIMIENTOS (modules/procedure.js)
+   - Los pasos son definidos por profesionales en la base de conocimientos
+   - El sistema detecta hallazgos e identifica el paso sugerido
+   - Cada paso muestra: titulo, descripcion, imagen (si existe), estado
+   - El estudiante puede marcar pasos como completados
+
+6. BASE DE CONOCIMIENTOS (modules/knowledge.js)
+   - Estructura de cada entrada:
+       id, title, category, content, steps[], trigger_keywords[],
+       author, timestamp
+   - Categorias: tecnica | hallazgo | protocolo | definicion
+   - Lectura: todos los roles
+   - Escritura: solo profesionales aprobados por el dueno
+   - El dueno puede activar o revocar permisos de escritura
+
+7. CUADERNO DEL ESTUDIANTE (modules/notebook.js)
+   - Solo visible para el estudiante logueado
+   - Guardado en localStorage bajo la clave del usuario
+   - Funciones: crear, editar y eliminar notas; organizar por etiquetas
+   - Las notas por voz ("anotar: ...") aparecen aqui automaticamente
+   - Completamente privado: ningun otro usuario o rol puede verlas
+
+
+BASE DE CONOCIMIENTOS INICIAL (knowledge_base.json)
+-----------------------------------------------------
+3 entradas semilla escritas por el dueno inicial:
+  1. Tecnica de incision en Y
+  2. Orden de examen de organos internos
+  3. Documentacion de hallazgos externos
+
+
+NOTAS IMPORTANTES
+-----------------
+- La app es 100% frontend (sin servidor). Los datos persisten en
+  localStorage del navegador.
+- Camara y microfono requieren que la app se sirva desde localhost o
+  HTTPS. NO abrir index.html directamente como archivo local.
+- Para ejecutar: npx -y serve "C:\Users\Yessy\Desktop\Renata\Antigravity"
+  Luego abrir http://localhost:3000 en Chrome o Edge.
+
+
+PLAN DE VERIFICACION
+---------------------
+Pasos a probar:
+  [ ] Login y registro de estudiante
+  [ ] Login y registro de profesional
+  [ ] Login del dueno (owner2024)
+  [ ] Navegacion por todos los tabs
+  [ ] Overlay de incision en camara
+  [ ] Captura de foto (boton y voz)
+  [ ] Reconocimiento de hallazgo por voz
+  [ ] Lectura de base de conocimientos
+  [ ] Escritura en base de conocimientos (profesional aprobado)
+  [ ] Aprobacion de profesional desde Panel Admin
+  [ ] Cuaderno privado del estudiante (anotacion manual y por voz)
+  [ ] Verificar que el dueno no ve cuadernos de estudiantes

@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forense Assistant – Sistema</title>
+    <meta name="description"
+        content="Sistema de asistencia forense: cámara, procedimiento guiado, base de conocimientos y cuaderno personal." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/styles/main.css" />
+
+    <!-- MediaPipe Pose -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <style>
+        /* ── App shell ─────────────────────────────────── */
+        .app-shell {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Top navbar ─────────────────────────────────── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            height: 58px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            gap: 12px;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-brand .logo-text {
+            font-size: 1rem;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 200, 255, 0.08);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+        }
+
+        /* ── Voice status bar ───────────────────────────── */
+        .voice-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .voice-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .voice-indicator.active {
+            background: var(--accent-red);
+            animation: pulse-glow 1.2s infinite;
+        }
+
+        /* ── Tab bar ────────────────────────────────────── */
+        .tab-bar {
+            display: flex;
+            overflow-x: auto;
+            background: var(--bg-dark);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .tab-bar::-webkit-scrollbar {
+            height: 2px;
+        }
+
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 13px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+        }
+
+        .tab-item.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+
+        .tab-item:hover:not(.active) {
+            color: var(--text-secondary);
+        }
+
+        /* ── Main content area ──────────────────────────── */
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+            animation: fadeIn 0.35s ease;
+        }
+
+        /* ═══════════════════════════════════════════════
+       TAB 1: CAMERA
+    ═══════════════════════════════════════════════ */
+        .camera-grid {
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 20px;
+            max-width: 1200px;
+        }
+
+        @media (max-width: 900px) {
+            .camera-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .camera-view {
+            position: relative;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: #000;
+            aspect-ratio: 16/9;
+        }
+
+        .camera-view video {
+            display: none;
+        }
+
+        .camera-view canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .camera-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 12px;
+            color: var(--text-muted);
+        }
+
+        .camera-placeholder .icon {
+            font-size: 3rem;
+        }
+
+        .camera-side {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .capture-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        .capture-thumb {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .capture-thumb:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .capture-thumb img {
+            width: 100%;
+            display: block;
+        }
+
+        .overlay-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-switch {
+            width: 40px;
+            height: 22px;
+            border-radius: 11px;
+            background: var(--accent-blue);
+            position: relative;
+            flex-shrink: 0;
+            transition: background 0.25s;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: 0.25s;
+        }
+
+        .toggle-switch.off {
+            background: var(--text-muted);
+        }
+
+        .toggle-switch.off::after {
+            left: 21px;
+        }
+
+        /* ═══════════════════════════════════════════════
+       TAB 2: PROCEDURE
+    ═══════════════════════════════════════════════ */
+        .procedure-grid {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 20px;
+            max-width: 1100px;
+        }
+
+        @media (max-width: 900px) {
+            .procedure-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .finding-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .finding-input-row .form-control {
+            flex: 1;
+        }
+
+        .step-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .step-item.current {
+            border-color: var(--accent-blue);
+            background: rgba(0, 200, 255, 0.06);
+        }
+
+        .step-item.done {
+            opacity: 0.6;
+        }
+
+        .step-item.done .step-num {
+            background: var(--accent-teal);
+        }
+
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .step-item.current .step-num {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .step-text {
+            font-size: 0.88rem;
+            line-height: 1.55;
+            color: var(--text-primary);
+        }
+
+        .progress-bar-wrap {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            height: 8px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-teal));
+            border-radius: 6px;
+            transition: width 0.4s ease;
+        }
+
+        .current-step-card {
+            padding: 20px;
+            border-radius: var(--radius-md);
+            background: rgba(0, 200, 255, 0.05);
+            border: 1px solid var(--border-focus);
+        }
+
+        .current-step-card h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+        }
+
+        .current-step-text {
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════════════════════════════════
+       TAB 3: KNOWLEDGE BASE
+    ═══════════════════════════════════════════════ */
+        .kb-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .kb-header .form-control {
+            max-width: 280px;
+        }
+
+        .kb-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .kb-card {
+            padding: 20px;
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .kb-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .kb-card h3 {
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .kb-card p {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            flex: 1;
+        }
+
+        .kb-card .meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .kb-card .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .kb-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        /* KB Edit modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal-box {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 30px;
+            width: 100%;
+            max-width: 640px;
+            max-height: 90vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .modal-box h2 {
+            font-size: 1.1rem;
+            color: var(--accent-blue);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .tags-input {
+            font-size: 0.85rem;
+        }
+
+        /* ═══════════════════════════════════════════════
+       TAB 4: STUDENT NOTEBOOK
+    ═══════════════════════════════════════════════ */
+        .notebook-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 20px;
+            max-width: 1000px;
+        }
+
+        @media (max-width: 768px) {
+            .notebook-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .note-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .note-item {
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+        }
+
+        .note-item.active {
+            border-color: var(--accent-blue);
+            background: rgba(0, 200, 255, 0.06);
+        }
+
+        .note-item:hover:not(.active) {
+            border-color: var(--border-focus);
+        }
+
+        .note-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-bottom: 4px;
+        }
+
+        .note-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .note-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .note-editor textarea {
+            min-height: 260px;
+        }
+
+        /* ═══════════════════════════════════════════════
+       TAB 5: ADMIN PANEL
+    ═══════════════════════════════════════════════ */
+        .admin-section {
+            margin-bottom: 28px;
+        }
+
+        .admin-section h2 {
+            font-size: 1rem;
+            color: var(--accent-blue);
+            margin-bottom: 14px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .user-table-wrap {
+            overflow-x: auto;
+        }
+
+        table.user-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        table.user-table th,
+        table.user-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        table.user-table th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        table.user-table tr:hover td {
+            background: rgba(0, 200, 255, 0.04);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-shell">
+
+        <!-- ── NAVBAR ──────────────────────────────────────── -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <span style="font-size:1.4rem;filter:drop-shadow(0 0 8px rgba(0,200,255,.5))">🔬</span>
+                <span class="logo-text">FORENSE ASSISTANT</span>
+            </div>
+            <div class="navbar-right">
+                <div class="user-chip">
+                    <span id="nav-user-icon">👤</span>
+                    <span id="nav-user-name">...</span>
+                    <span id="nav-user-badge" class="badge"></span>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">⏻ Salir</button>
+            </div>
+        </nav>
+
+        <!-- ── VOICE STATUS BAR ────────────────────────────── -->
+        <div class="voice-bar">
+            <div class="voice-indicator" id="voice-indicator"></div>
+            <span id="voice-status-text">Micrófono inactivo</span>
+            <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted)">
+                Di <strong style="color:var(--accent-blue)">"Anótalo, Mario Hugo"</strong> para activar por voz y
+                <strong style="color:var(--accent-red)">"Basta Rogelio"</strong> para apagar
+            </span>
+        </div>
+
+        <!-- ── TAB BAR ─────────────────────────────────────── -->
+        <div class="tab-bar" role="tablist">
+            <button class="tab-item active" id="tab-camera" onclick="switchTab('camera')">📷 Cámara & Incisión</button>
+            <button class="tab-item" id="tab-procedure" onclick="switchTab('procedure')">📋 Procedimiento</button>
+            <button class="tab-item" id="tab-knowledge" onclick="switchTab('knowledge')">📚 Base de
+                Conocimientos</button>
+            <button class="tab-item" id="tab-notebook" onclick="switchTab('notebook')">📓 Mi Cuaderno</button>
+            <button class="tab-item" id="tab-settings" onclick="switchTab('settings')">⚙️ Ajustes</button>
+            <button class="tab-item hidden" id="tab-admin" onclick="switchTab('admin')">🛡️ Panel Admin</button>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════
+       MAIN CONTENT
+  ══════════════════════════════════════════════════ -->
+        <div class="tab-content">
+
+            <!-- ═══ TAB 1: CAMERA ═══════════════════════════════ -->
+            <div class="tab-panel active" id="panel-camera">
+                <div class="camera-grid">
+                    <!-- Camera view -->
+                    <div>
+                        <div class="camera-view" id="camera-view">
+                            <div class="camera-placeholder" id="camera-placeholder">
+                                <span class="icon">📷</span>
+                                <p>La cámara no está activa</p>
+                                <button class="btn btn-primary" onclick="startCamera()">Activar Cámara</button>
+                            </div>
+                            <video id="cam-video" autoplay muted playsinline></video>
+                            <canvas id="cam-canvas" style="display:none"></canvas>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
+                            <button class="btn btn-primary" id="btn-capture" onclick="doCapture()" disabled>📸
+                                Capturar</button>
+                            <button class="btn btn-ghost" id="btn-toggle-voice" onclick="toggleVoice()">🎙️ Activar
+                                Micrófono</button>
+                            <label class="overlay-toggle">
+                                <div class="toggle-switch" id="overlay-toggle" onclick="toggleOverlay(this)"></div>
+                                <span style="font-size:0.82rem;color:var(--text-secondary)">Mostrar guía de
+                                    incisión</span>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- Captures side panel -->
+                    <div class="glass-card camera-side" style="padding:16px">
+                        <h3
+                            style="font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">
+                            Capturas</h3>
+                        <div class="capture-list" id="capture-list">
+                            <p style="font-size:0.8rem;color:var(--text-muted)">Las fotos tomadas aparecerán aquí.</p>
+                        </div>
+                        <button class="btn btn-danger btn-sm" onclick="clearCaptures()" style="margin-top:auto">🗑️
+                            Limpiar fotos</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 2: PROCEDURE ═════════════════════════════ -->
+            <div class="tab-panel" id="panel-procedure">
+                <div class="procedure-grid">
+                    <!-- Left: finding input + steps -->
+                    <div style="display:flex;flex-direction:column;gap:16px">
+                        <div class="glass-card" style="padding:20px">
+                            <h2 style="font-size:1rem;margin-bottom:14px;color:var(--accent-blue)">🔍 Reportar Hallazgo
+                            </h2>
+                            <div class="finding-input-row">
+                                <input class="form-control" id="finding-input" type="text"
+                                    placeholder='Ej: "livideces dorsales", "rigidez completa"...' />
+                                <button class="btn btn-primary" onclick="searchFinding()">Buscar</button>
+                            </div>
+                            <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px">O di <strong
+                                    style="color:var(--accent-blue)">"hallazgo: [descripción]"</strong> con el micrófono
+                            </p>
+                        </div>
+
+                        <div id="procedure-empty" style="text-align:center;padding:40px;color:var(--text-muted)">
+                            <p>Reporta un hallazgo para ver el protocolo correspondiente.</p>
+                        </div>
+
+                        <div id="procedure-results" style="display:none;flex-direction:column;gap:14px">
+                            <div class="glass-card" style="padding:16px">
+                                <div
+                                    style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+                                    <div>
+                                        <h2 style="font-size:1rem" id="proc-title">—</h2>
+                                        <p style="font-size:0.8rem;color:var(--text-muted)" id="proc-category">—</p>
+                                    </div>
+                                    <div style="text-align:right;font-size:0.8rem;color:var(--text-secondary)"
+                                        id="proc-progress-label">0%</div>
+                                </div>
+                                <div class="progress-bar-wrap">
+                                    <div class="progress-bar-fill" id="proc-progress-bar" style="width:0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="step-list" id="step-list"></div>
+
+                            <div style="display:flex;gap:10px">
+                                <button class="btn btn-ghost" onclick="navStep('prev')">← Anterior</button>
+                                <button class="btn btn-ghost" onclick="navStep('next')">Siguiente →</button>
+                                <button class="btn btn-ghost btn-sm"
+                                    onclick="Voice.speak(Procedure.getSteps()[Procedure.getCurrentStepIdx()])">🔊 Leer
+                                    paso</button>
+                                <button class="btn btn-ghost btn-sm" style="margin-left:auto"
+                                    onclick="clearProcedure()">✕ Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: current step card -->
+                    <div class="current-step-card glass-card" id="current-step-sidebar" style="display:none">
+                        <h3>PASO ACTUAL</h3>
+                        <div style="font-size:1.5rem;text-align:center;padding:12px">📋</div>
+                        <p class="current-step-text" id="current-step-text">—</p>
+                        <div style="margin-top:14px;display:flex;gap:8px">
+                            <button class="btn btn-primary btn-sm" onclick="markCurrentDone()">✓ Marcar
+                                completado</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 3: KNOWLEDGE BASE ════════════════════════ -->
+            <div class="tab-panel" id="panel-knowledge">
+                <div class="kb-header">
+                    <h2 style="font-size:1.1rem;flex:1">📚 Base de Conocimientos</h2>
+                    <input class="form-control" id="kb-search" type="search" placeholder="Buscar..."
+                        oninput="renderKB()" />
+                    <button class="btn btn-primary" id="btn-kb-new" onclick="openKBModal()" style="display:none">＋ Nueva
+                        entrada</button>
+                </div>
+                <div class="alert" id="kb-alert"></div>
+                <div class="kb-grid" id="kb-grid"></div>
+            </div>
+
+            <!-- ═══ TAB 4: STUDENT NOTEBOOK ══════════════════════ -->
+            <div class="tab-panel" id="panel-notebook">
+                <div class="notebook-grid">
+                    <!-- Sidebar -->
+                    <div class="glass-card"
+                        style="padding:16px;display:flex;flex-direction:column;gap:12px;height:fit-content">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <h3
+                                style="font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px">
+                                Mis Notas</h3>
+                            <button class="btn btn-primary btn-sm" onclick="newNote()">＋</button>
+                        </div>
+                        <div class="note-list" id="note-list">
+                            <p style="font-size:0.8rem;color:var(--text-muted)">Sin notas aún.</p>
+                        </div>
+                    </div>
+                    <!-- Editor -->
+                    <div class="glass-card note-editor" style="padding:20px" id="note-editor-card">
+                        <p style="color:var(--text-muted);font-size:0.88rem">Selecciona una nota o crea una nueva.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 5: SETTINGS ════════════════════════════════ -->
+            <div class="tab-panel" id="panel-settings">
+                <div style="max-width:600px">
+                    <div class="admin-section">
+                        <h2>⚙️ Ajustes de Usuario</h2>
+                        <div class="glass-card" style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+                            <p style="font-size:0.9rem;color:var(--text-secondary)">Configura tus comandos de voz
+                                personalizados. Estos se guardarán en tu navegador para tus futuras sesiones.</p>
+
+                            <div class="form-group">
+                                <label class="form-label">Comando para iniciar dictado de notas</label>
+                                <input class="form-control" id="cfg-voice-start" type="text"
+                                    placeholder="Ej: Anótalo Mario Hugo" />
+                                <span
+                                    style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;display:block">Frase
+                                    que activa el modo de grabar nota en tu cuaderno privado.</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Comando para detener dictado de notas</label>
+                                <input class="form-control" id="cfg-voice-stop" type="text"
+                                    placeholder="Ej: Basta Rogelio" />
+                                <span
+                                    style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;display:block">Frase
+                                    que desactiva el micrófono al terminar.</span>
+                            </div>
+
+                            <div class="alert" id="settings-alert"></div>
+
+                            <button class="btn btn-primary" onclick="saveSettings()" style="align-self:flex-start">💾
+                                Guardar Ajustes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB 6: ADMIN PANEL ════════════════════════════ -->
+            <div class="tab-panel" id="panel-admin">
+                <div style="max-width:900px">
+                    <div class="admin-section">
+                        <h2>👥 Gestión de Usuarios</h2>
+                        <div class="alert" id="admin-alert"></div>
+                        <div class="user-table-wrap">
+                            <table class="user-table" id="user-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Correo</th>
+                                        <th>Rol</th>
+                                        <th>Escritura KB</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="user-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="admin-section">
+                        <h2>📊 Estadísticas</h2>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
+                            <div class="glass-card" style="padding:18px;text-align:center">
+                                <div style="font-size:2rem;font-weight:700;color:var(--accent-blue)" id="stat-users">0
+                                </div>
+                                <div style="font-size:0.8rem;color:var(--text-secondary)">Usuarios registrados</div>
+                            </div>
+                            <div class="glass-card" style="padding:18px;text-align:center">
+                                <div style="font-size:2rem;font-weight:700;color:var(--accent-teal)" id="stat-kb">0
+                                </div>
+                                <div style="font-size:0.8rem;color:var(--text-secondary)">Entradas en KB</div>
+                            </div>
+                            <div class="glass-card" style="padding:18px;text-align:center">
+                                <div style="font-size:2rem;font-weight:700;color:var(--accent-amber)" id="stat-pros">0
+                                </div>
+                                <div style="font-size:0.8rem;color:var(--text-secondary)">Profesionales aprobados</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- end .tab-content -->
+    </div><!-- end .app-shell -->
+
+    <!-- ═══ KB EDIT MODAL ══════════════════════════════════════ -->
+    <div class="modal-overlay hidden" id="kb-modal">
+        <div class="modal-box">
+            <h2 id="modal-title">Nueva Entrada</h2>
+            <div class="form-group">
+                <label class="form-label">Título</label>
+                <input class="form-control" id="modal-kb-title" type="text"
+                    placeholder="Ej: Técnica de apertura craneal" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Categoría</label>
+                <select class="form-control" id="modal-kb-category">
+                    <option value="técnica">Técnica</option>
+                    <option value="hallazgo">Hallazgo</option>
+                    <option value="protocolo">Protocolo</option>
+                    <option value="definición">Definición</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contenido / Descripción</label>
+                <textarea class="form-control" id="modal-kb-content" placeholder="Descripción detallada..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Pasos del procedimiento (uno por línea)</label>
+                <textarea class="form-control" id="modal-kb-steps" placeholder="Paso 1&#10;Paso 2&#10;Paso 3"
+                    style="min-height:120px"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Palabras clave de activación (separadas por coma)</label>
+                <input class="form-control tags-input" id="modal-kb-keywords" type="text"
+                    placeholder="hallazgo, lividez, rigor mortis" />
+            </div>
+            <div class="alert" id="modal-alert"></div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeKBModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveKBEntry()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ SCRIPTS ══════════════════════════════════════════════ -->
+    <script src="/static/config.js"></script>
+    <script src="/static/modules/auth.js"></script>
+    <script src="/static/modules/knowledge.js"></script>
+    <script src="/static/modules/notebook.js"></script>
+    <script src="/static/modules/camera.js"></script>
+    <script src="/static/modules/voice.js"></script>
+    <script src="/static/modules/procedure.js"></script>
+
+    <script>
+        // ─────────────────────────────────────────────────────────────
+        //  APP BOOTSTRAP
+        // ─────────────────────────────────────────────────────────────
+        const currentUser = Auth.requireAuth();
+        let editingKBId = null;
+        let editingNoteId = null;
+        let overlayOn = true;
+
+        // Update institution name in page title
+        document.title = window.APP_CONFIG.institution + ' – Sistema';
+
+        // Badge map
+        const BADGE_MAP = {
+            owner: { text: 'Dueño', cls: 'badge-owner' },
+            professional: { text: 'Profesional', cls: 'badge-pro' },
+            student: { text: 'Estudiante', cls: 'badge-student' },
+        };
+
+        function initUI() {
+            const b = BADGE_MAP[currentUser.role] || { text: currentUser.role, cls: '' };
+            document.getElementById('nav-user-name').textContent = currentUser.name;
+            const badge = document.getElementById('nav-user-badge');
+            badge.textContent = b.text;
+            badge.className = 'badge ' + b.cls;
+
+            // Show/hide role-specific tabs
+            if (Auth.isOwner(currentUser))
+                document.getElementById('tab-admin').classList.remove('hidden');
+
+            // KB write button
+            if (Auth.canWrite(currentUser))
+                document.getElementById('btn-kb-new').style.display = '';
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  TAB NAVIGATION
+        // ─────────────────────────────────────────────────────────────
+        function switchTab(name) {
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            document.getElementById('panel-' + name).classList.add('active');
+
+            if (name === 'knowledge') renderKB();
+            if (name === 'notebook') renderNotebook();
+            if (name === 'admin') { renderAdmin(); updateStats(); }
+            if (name === 'settings') loadSettingsUI();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  SETTINGS
+        // ─────────────────────────────────────────────────────────────
+        function loadSettingsUI() {
+            const startCmd = localStorage.getItem('voice_start_cmd') || 'anótalo mario hugo';
+            const stopCmd = localStorage.getItem('voice_stop_cmd') || 'basta rogelio';
+            document.getElementById('cfg-voice-start').value = startCmd;
+            document.getElementById('cfg-voice-stop').value = stopCmd;
+        }
+
+        function saveSettings() {
+            const startCmd = document.getElementById('cfg-voice-start').value.trim() || 'anótalo mario hugo';
+            const stopCmd = document.getElementById('cfg-voice-stop').value.trim() || 'basta rogelio';
+
+            localStorage.setItem('voice_start_cmd', startCmd);
+            localStorage.setItem('voice_stop_cmd', stopCmd);
+
+            // Reload Voice Module Config
+            Voice.updateKeywords(startCmd, stopCmd);
+
+            const alertEl = document.getElementById('settings-alert');
+            alertEl.textContent = '✅ Ajustes guardados correctamente.';
+            alertEl.className = 'alert alert-success show';
+            setTimeout(() => { alertEl.className = 'alert'; }, 3000);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  VOICE
+        // ─────────────────────────────────────────────────────────────
+        function updateVoiceStatus(msg, state = 'idle') {
+            document.getElementById('voice-status-text').textContent = msg;
+            const ind = document.getElementById('voice-indicator');
+            ind.className = 'voice-indicator' + (state === 'active' ? ' active' : '');
+            const btn = document.getElementById('btn-toggle-voice');
+            btn.textContent = state === 'active' ? '🔇 Desactivar Micrófono' : '🎙️ Activar Micrófono';
+        }
+
+        Voice.init({
+            onFinding: (f) => { document.getElementById('finding-input').value = f; searchFinding(); switchTab('procedure'); },
+            onNote: async (n) => { if (currentUser.role === 'student') { await Notebook.addNote(currentUser.id, { text: n, source: 'voice', category: 'Voz' }); if (document.getElementById('panel-notebook').classList.contains('active')) renderNotebook(); } },
+            onCapture: () => { if (document.getElementById('panel-camera').classList.contains('active')) doCapture(); else { switchTab('camera'); setTimeout(doCapture, 600); } },
+            onNavigate: (dir) => navStep(dir),
+            onReadStep: () => { const steps = Procedure.getSteps(); if (steps.length) Voice.speak(steps[Procedure.getCurrentStepIdx()]); },
+            onStatus: updateVoiceStatus,
+        });
+
+        function toggleVoice() {
+            if (Voice.isListening()) { Voice.stop(); }
+            else { Voice.start(); }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  CAMERA
+        // ─────────────────────────────────────────────────────────────
+        async function startCamera() {
+            const ph = document.getElementById('camera-placeholder');
+            ph.innerHTML = '<span class="icon">⏳</span><p>Conectando cámara...</p>';
+            Camera.init('cam-video', 'cam-canvas');
+            const res = await Camera.start();
+            if (!res.ok) { ph.innerHTML = `<span class="icon">❌</span><p>${res.error}</p>`; return; }
+            ph.style.display = 'none';
+            document.getElementById('cam-canvas').style.display = 'block';
+            document.getElementById('btn-capture').disabled = false;
+        }
+
+        let captures = [];
+        function doCapture() {
+            const dataUrl = Camera.capture();
+            captures.push(dataUrl);
+            renderCaptures();
+        }
+
+        function renderCaptures() {
+            const list = document.getElementById('capture-list');
+            list.innerHTML = '';
+            if (!captures.length) { list.innerHTML = '<p style="font-size:0.8rem;color:var(--text-muted)">Las fotos tomadas aparecerán aquí.</p>'; return; }
+            captures.forEach((url, i) => {
+                const d = document.createElement('div');
+                d.className = 'capture-thumb';
+                d.innerHTML = `<img src="${url}" alt="Captura ${i + 1}" />`;
+                d.onclick = () => window.open(url, '_blank');
+                list.prepend(d);
+            });
+        }
+
+        function clearCaptures() { captures = []; renderCaptures(); }
+
+        function toggleOverlay(el) {
+            overlayOn = !overlayOn;
+            el.classList.toggle('off', !overlayOn);
+            Camera.toggleOverlay(overlayOn);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  PROCEDURE
+        // ─────────────────────────────────────────────────────────────
+        function searchFinding() {
+            const query = document.getElementById('finding-input').value.trim();
+            if (!query) return;
+            const entry = Knowledge.findByFinding(query) || Knowledge.search(query)[0];
+            if (!entry) {
+                document.getElementById('procedure-empty').innerHTML = `<p style="color:var(--accent-amber)">No se encontró un protocolo para "<strong>${query}</strong>". Prueba con otras palabras.</p>`;
+                document.getElementById('procedure-results').style.display = 'none';
+                return;
+            }
+            Procedure.load(entry);
+            renderProcedure();
+        }
+
+        function renderProcedure() {
+            const entry = Procedure.getCurrent();
+            if (!entry) return;
+            document.getElementById('procedure-empty').style.display = 'none';
+            document.getElementById('procedure-results').style.display = 'flex';
+            document.getElementById('proc-title').textContent = entry.title;
+            document.getElementById('proc-category').textContent = '📂 ' + (entry.category || 'General');
+            renderSteps();
+        }
+
+        function renderSteps() {
+            const steps = Procedure.getSteps();
+            const curr = Procedure.getCurrentStepIdx();
+            const pct = Procedure.getProgress();
+            document.getElementById('proc-progress-bar').style.width = pct + '%';
+            document.getElementById('proc-progress-label').textContent = pct + '% completado';
+
+            const list = document.getElementById('step-list');
+            list.innerHTML = '';
+            steps.forEach((s, i) => {
+                const el = document.createElement('div');
+                el.className = 'step-item' + (i === curr ? ' current' : '') + (Procedure.isCompleted(i) ? ' done' : '');
+                el.onclick = () => { Procedure['currentStepIdx'] = i; /* direct update trick */ renderSteps(); updateCurrentStepSidebar(); };
+                el.innerHTML = `<div class="step-num">${Procedure.isCompleted(i) ? '✓' : i + 1}</div><div class="step-text">${s}</div>`;
+                list.appendChild(el);
+            });
+            updateCurrentStepSidebar();
+        }
+
+        function updateCurrentStepSidebar() {
+            const steps = Procedure.getSteps();
+            const idx = Procedure.getCurrentStepIdx();
+            const sb = document.getElementById('current-step-sidebar');
+            if (!steps.length) { sb.style.display = 'none'; return; }
+            sb.style.display = 'flex';
+            document.getElementById('current-step-text').textContent = steps[idx] || '—';
+        }
+
+        function navStep(dir) {
+            if (dir === 'next') Procedure.goNext(); else Procedure.goPrev();
+            renderSteps();
+        }
+
+        function markCurrentDone() {
+            Procedure.toggleComplete(Procedure.getCurrentStepIdx());
+            Procedure.goNext();
+            renderSteps();
+        }
+
+        function clearProcedure() {
+            Procedure.clear();
+            document.getElementById('procedure-empty').style.display = '';
+            document.getElementById('procedure-empty').innerHTML = '<p>Reporta un hallazgo para ver el protocolo correspondiente.</p>';
+            document.getElementById('procedure-results').style.display = 'none';
+            document.getElementById('current-step-sidebar').style.display = 'none';
+            document.getElementById('finding-input').value = '';
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  KNOWLEDGE BASE
+        // ─────────────────────────────────────────────────────────────
+        function kbAlert(msg, type = 'error') {
+            const el = document.getElementById('kb-alert');
+            el.textContent = msg; el.className = `alert alert-${type} show`;
+            setTimeout(() => { el.className = 'alert'; }, 4000);
+        }
+
+        function renderKB() {
+            const query = (document.getElementById('kb-search').value || '').trim();
+            const entries = query ? Knowledge.search(query) : Knowledge.getAll();
+            const grid = document.getElementById('kb-grid');
+            grid.innerHTML = '';
+            if (!entries.length) {
+                grid.innerHTML = '<div class="kb-empty">No se encontraron entradas.</div>';
+                return;
+            }
+            entries.forEach(e => {
+                const card = document.createElement('div');
+                card.className = 'kb-card fade-in';
+                const canEdit = Auth.canWrite(currentUser) && (currentUser.role === 'owner' || e.authorId === currentUser.id);
+                card.innerHTML = `
+      <div class="meta">
+        <span class="badge badge-pro">${e.category}</span>
+        <span>por ${e.author}</span>
+        <span>${new Date(e.timestamp).toLocaleDateString('es')}</span>
+      </div>
+      <h3>${e.title}</h3>
+      <p>${e.content.substring(0, 150)}${e.content.length > 150 ? '…' : ''}</p>
+      ${e.steps && e.steps.length ? `<p style="font-size:0.78rem;color:var(--accent-teal)">📋 ${e.steps.length} pasos definidos</p>` : ''}
+      <div class="actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadEntryToProcedure('${e.id}')">▶ Usar protocolo</button>
+        ${canEdit ? `
+          <button class="btn btn-ghost btn-sm" onclick="openKBModal('${e.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteKBEntry('${e.id}')">🗑️</button>
+        ` : ''}
+      </div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function loadEntryToProcedure(id) {
+            const e = Knowledge.getById(id);
+            if (!e) return;
+            Procedure.clear();
+            Procedure.load(e);
+            switchTab('procedure');
+            renderProcedure();
+        }
+
+        function openKBModal(id = null) {
+            editingKBId = id;
+            const modal = document.getElementById('kb-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('modal-title').textContent = id ? 'Editar Entrada' : 'Nueva Entrada';
+            document.getElementById('modal-alert').className = 'alert';
+
+            if (id) {
+                const e = Knowledge.getById(id);
+                if (!e) return;
+                document.getElementById('modal-kb-title').value = e.title;
+                document.getElementById('modal-kb-category').value = e.category;
+                document.getElementById('modal-kb-content').value = e.content;
+                document.getElementById('modal-kb-steps').value = (e.steps || []).join('\n');
+                document.getElementById('modal-kb-keywords').value = (e.trigger_keywords || []).join(', ');
+            } else {
+                document.getElementById('modal-kb-title').value = '';
+                document.getElementById('modal-kb-category').value = 'técnica';
+                document.getElementById('modal-kb-content').value = '';
+                document.getElementById('modal-kb-steps').value = '';
+                document.getElementById('modal-kb-keywords').value = '';
+            }
+        }
+
+        function closeKBModal() { document.getElementById('kb-modal').classList.add('hidden'); editingKBId = null; }
+
+        function saveKBEntry() {
+            const title = document.getElementById('modal-kb-title').value.trim();
+            const category = document.getElementById('modal-kb-category').value;
+            const content = document.getElementById('modal-kb-content').value.trim();
+            const steps = document.getElementById('modal-kb-steps').value.split('\n').map(s => s.trim()).filter(Boolean);
+            const keywords = document.getElementById('modal-kb-keywords').value.split(',').map(k => k.trim()).filter(Boolean);
+            const alertEl = document.getElementById('modal-alert');
+
+            if (!title || !content) {
+                alertEl.textContent = 'El título y contenido son requeridos.';
+                alertEl.className = 'alert alert-error show'; return;
+            }
+            const data = { title, category, content, steps, trigger_keywords: keywords };
+            const res = editingKBId
+                ? Knowledge.update(currentUser, editingKBId, data)
+                : Knowledge.create(currentUser, data);
+
+            if (!res.ok) { alertEl.textContent = res.error; alertEl.className = 'alert alert-error show'; return; }
+            closeKBModal();
+            renderKB();
+            updateStats();
+        }
+
+        function deleteKBEntry(id) {
+            if (!confirm('¿Eliminar esta entrada?')) return;
+            const res = Knowledge.remove(currentUser, id);
+            if (!res.ok) kbAlert(res.error);
+            else { renderKB(); updateStats(); }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  STUDENT NOTEBOOK
+        // ─────────────────────────────────────────────────────────────
+        async function renderNotebook() {
+            const notes = await Notebook.fetchNotes(currentUser.id);
+            const list = document.getElementById('note-list');
+            list.innerHTML = '';
+            if (!notes.length) { list.innerHTML = '<p style="font-size:0.8rem;color:var(--text-muted)">Sin notas aún.</p>'; return; }
+            notes.forEach(n => {
+                const el = document.createElement('div');
+                el.className = 'note-item' + (editingNoteId === n.id ? ' active' : '');
+                el.innerHTML = `<div class="note-title">${n.text.substring(0, 50)}${n.text.length > 50 ? '…' : ''}</div><div class="note-meta">${n.category} · ${new Date(n.timestamp || n.createdAt).toLocaleDateString('es')} ${n.source === 'voice' ? '🎙️' : ''}</div>`;
+                el.onclick = () => openNote(n.id);
+                list.appendChild(el);
+            });
+        }
+
+        function openNote(id) {
+            editingNoteId = id;
+            const notes = Notebook.getNotes(currentUser.id);
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            const card = document.getElementById('note-editor-card');
+            card.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h3 style="font-size:0.85rem;color:var(--accent-teal)">Editando nota</h3>
+      <button class="btn btn-danger btn-sm" onclick="deleteNote('${id}')">🗑️</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Categoría</label>
+      <input class="form-control" id="note-cat" value="${note.category}" />
+    </div>
+    <div class="form-group" style="flex:1">
+      <label class="form-label">Contenido</label>
+      <textarea class="form-control" id="note-text" style="min-height:240px">${note.text}</textarea>
+    </div>
+    <button class="btn btn-primary" onclick="saveNote('${id}')">💾 Guardar</button>`;
+            renderNotebook();
+        }
+
+        async function newNote() {
+            const n = await Notebook.addNote(currentUser.id, { text: 'Nueva nota...', category: 'General' });
+            if (n) {
+                await renderNotebook();
+                openNote(n.id);
+            }
+        }
+
+        async function saveNote(id) {
+            const text = document.getElementById('note-text').value;
+            const cat = document.getElementById('note-cat').value;
+            await Notebook.updateNote(currentUser.id, id, { text, category: cat });
+            renderNotebook();
+        }
+
+        async function deleteNote(id) {
+            if (!confirm('¿Eliminar esta nota?')) return;
+            await Notebook.deleteNote(currentUser.id, id);
+            editingNoteId = null;
+            document.getElementById('note-editor-card').innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem">Selecciona una nota o crea una nueva.</p>';
+            renderNotebook();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  ADMIN PANEL
+        // ─────────────────────────────────────────────────────────────
+        async function renderAdmin() {
+            const allUsers = await Auth.getAllUsers();
+            const users = allUsers.filter(u => u.role === 'professional' || u.role === 'student');
+            const tbody = document.getElementById('user-tbody');
+            tbody.innerHTML = '';
+            if (!users.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center">Sin usuarios registrados aún.</td></tr>';
+                return;
+            }
+            users.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+      <td>${u.name}</td>
+      <td style="color:var(--text-muted)">${u.email}</td>
+      <td><span class="badge ${u.role === 'professional' ? 'badge-pro' : 'badge-student'}">${u.role === 'professional' ? 'Profesional' : 'Estudiante'}</span></td>
+      <td>${u.role === 'student' ? '<span class="badge">N/A</span>' : u.writeApproved ? '<span class="badge badge-approved">Aprobado</span>' : '<span class="badge badge-pending">Pendiente</span>'}</td>
+      <td>
+        ${u.role === 'professional' ? `<button class="btn btn-sm ${u.writeApproved ? 'btn-danger' : 'btn-primary'}" onclick="toggleApproval('${u.id}',${!u.writeApproved})">${u.writeApproved ? 'Revocar' : 'Aprobar'}</button>` : '—'}
+      </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function toggleApproval(userId, approved) {
+            await Auth.setWriteApproval(userId, approved);
+            await renderAdmin();
+            await updateStats();
+            const alertEl = document.getElementById('admin-alert');
+            alertEl.textContent = approved ? '✅ Acceso de escritura aprobado.' : '🚫 Acceso de escritura revocado.';
+            alertEl.className = `alert alert-${approved ? 'success' : 'error'} show`;
+            setTimeout(() => { alertEl.className = 'alert'; }, 3000);
+        }
+
+        async function updateStats() {
+            const users = await Auth.getAllUsers();
+            document.getElementById('stat-users').textContent = users.length;
+            document.getElementById('stat-kb').textContent = Knowledge.getAll().length;
+            document.getElementById('stat-pros').textContent = users.filter(u => u.role === 'professional' && u.writeApproved).length;
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        //  INIT
+        // ─────────────────────────────────────────────────────────────
+        (async () => {
+            await Knowledge.init();
+            initUI();
+            renderKB();
+        })();
+    </script>
+</body>
+
+</html>

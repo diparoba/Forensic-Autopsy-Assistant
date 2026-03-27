@@ -1,0 +1,69 @@
+[
+  {
+    "id": "kb-001",
+    "title": "Técnica de Incisión en Y (Standard Y-Incision)",
+    "category": "técnica",
+    "content": "La incisión en Y es el método estándar para apertura del tórax y abdomen en autopsia. Se realizan dos incisiones desde cada hombro que se unen en el esternón y continúan hasta el pubis.",
+    "steps": [
+      "Colocar el cuerpo en decúbito supino sobre la mesa de autopsia",
+      "Desinfectar la superficie externa con solución antiséptica",
+      "Realizar incisión desde el hombro derecho hacia el esternón con bisturí #22",
+      "Realizar incisión desde el hombro izquierdo hacia el esternón, uniendo con la primera",
+      "Continuar incisión vertical desde el punto de unión hasta el pubis, rodeando el ombligo por la izquierda",
+      "Reflejar la piel y tejido subcutáneo lateral",
+      "Exponer la caja torácica y el abdomen",
+      "Documentar fotográficamente antes de proseguir"
+    ],
+    "trigger_keywords": ["incisión", "corte", "apertura", "abrir", "incision en y", "y incision"],
+    "author": "Administrador",
+    "authorId": "owner-001",
+    "timestamp": "2024-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "kb-002",
+    "title": "Orden de Extracción y Examen de Órganos Internos",
+    "category": "protocolo",
+    "content": "El método de Rokitansky consiste en extraer los órganos en bloque. El método de Virchow extrae cada órgano individualmente. La secuencia recomendada sigue un orden anatómico para preservar la integridad de los hallazgos.",
+    "steps": [
+      "Examinar cavidad torácica in situ antes de extraer órganos",
+      "Identificar el saco pericárdico y verificar presencia de líquido",
+      "Extraer el bloque cardiopulmonar: corazón y pulmones juntos",
+      "Pesar y medir corazón (normal: 250-350 g en adultos)",
+      "Seccionar el corazón siguiendo el flujo sanguíneo (válvulas)",
+      "Examinar pulmones: color, textura, presencia de consolidaciones o fluido",
+      "Examinar cavidad abdominal in situ",
+      "Extraer hígado (normal: 1200-1500 g), examinar superficie y parénquima",
+      "Extraer bazo (normal: 150-200 g)",
+      "Extraer riñones bilateralmente (normal: 120-150 g c/u)",
+      "Examinar tubo digestivo completo desde esófago hasta sigmoides",
+      "Extraer y examinar cerebro tras retirar calota craneal",
+      "Pesar cerebro (normal: 1250-1450 g)"
+    ],
+    "trigger_keywords": ["órgano", "corazón", "pulmón", "hígado", "riñón", "cerebro", "bazo", "extracción", "peso", "examen de órganos"],
+    "author": "Administrador",
+    "authorId": "owner-001",
+    "timestamp": "2024-01-15T08:05:00.000Z"
+  },
+  {
+    "id": "kb-003",
+    "title": "Documentación de Hallazgos Externos",
+    "category": "hallazgo",
+    "content": "La exploración externa es el primer paso de toda autopsia. Debe realizarse sistemáticamente de la cabeza a los pies, documentando cada observación antes de cualquier incisión.",
+    "steps": [
+      "Registrar datos de identificación: edad aproximada, sexo, complexión",
+      "Documentar estado general del cadáver (temperatura, rigidez, livideces)",
+      "Examinar cabeza: cuero cabelludo, cara, ojos, boca, orejas",
+      "Explorar cuello: buscar petequias, surcos, lesiones",
+      "Examinar tronco anterior y posterior: marca, lesiones, cicatrices",
+      "Examinar extremidades superiores: muñecas (ligaduras), dorso de manos",
+      "Examinar extremidades inferiores: rodillas, tobillos, plantas de pies",
+      "Documentar todas las lesiones: ubicación, forma, color, dimensiones",
+      "Fotografiar hallazgos relevantes con escala métrica de referencia",
+      "Tomar muestras de uñas, cabello y superficies para análisis toxicológico"
+    ],
+    "trigger_keywords": ["hallazgo externo", "exploración", "lividez", "rigidez", "lesión", "herida", "marca", "cicatriz", "exterior", "piel"],
+    "author": "Administrador",
+    "authorId": "owner-001",
+    "timestamp": "2024-01-15T08:10:00.000Z"
+  }
+]

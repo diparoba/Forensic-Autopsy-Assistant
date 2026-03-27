@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+jinja2
+sqlalchemy
+pydantic
+Pillow>=10.0.0
